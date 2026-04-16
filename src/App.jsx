@@ -58,45 +58,79 @@ function Particles() {
 }
 
 export default function TalkToKrishna() {
-  const [phase, setPhase] = useState('auth'); 
-  const [step, setStep] = useState(0);
-  
+  // SESSION RECOVERY: Initialize state from Browser Memory
+  const [phase, setPhase] = useState(() => localStorage.getItem('ss_phase') || 'auth'); 
+  const [step, setStep] = useState(() => parseInt(localStorage.getItem('ss_step') || '0', 10));
   const [accessCode, setAccessCode] = useState('');
+  const [activeCode, setActiveCode] = useState(() => localStorage.getItem('ss_activeCode') || '');
+  const [usedCodes, setUsedCodes] = useState(() => JSON.parse(localStorage.getItem('ss_usedCodes') || '[]'));
   const [authError, setAuthError] = useState('');
   const [generatedCodes, setGeneratedCodes] = useState([]);
   
-  const [userLang, setUserLang] = useState('English');
-  const [userName, setUserName] = useState('');
+  const [userLang, setUserLang] = useState(() => localStorage.getItem('ss_lang') || 'English');
+  const [userName, setUserName] = useState(() => localStorage.getItem('ss_name') || '');
   const [userMood, setUserMood] = useState('');
   const [userConcern, setUserConcern] = useState('');
   
-  const [messages, setMessages] = useState([]);
-  const [userMessageCount, setUserMessageCount] = useState(0);
+  const [messages, setMessages] = useState(() => JSON.parse(localStorage.getItem('ss_messages') || '[]'));
+  const [userMessageCount, setUserMessageCount] = useState(() => parseInt(localStorage.getItem('ss_count') || '0', 10));
   const [input, setInput] = useState('');
   const [isTyping, setIsTyping] = useState(false);
-  const [saved, setSaved] = useState([]);
+  const [saved, setSaved] = useState(() => JSON.parse(localStorage.getItem('ss_saved') || '[]'));
   
   const [showSaved, setShowSaved] = useState(false);
   const [showSupport, setShowSupport] = useState(false);
   const [audioOn, setAudioOn] = useState(false);
   const chatRef = useRef(null);
 
+  // SAVE TO BROWSER MEMORY WHENEVER STATE CHANGES
+  useEffect(() => {
+    localStorage.setItem('ss_phase', phase);
+    localStorage.setItem('ss_step', step);
+    localStorage.setItem('ss_activeCode', activeCode);
+    localStorage.setItem('ss_usedCodes', JSON.stringify(usedCodes));
+    localStorage.setItem('ss_lang', userLang);
+    localStorage.setItem('ss_name', userName);
+    localStorage.setItem('ss_messages', JSON.stringify(messages));
+    localStorage.setItem('ss_count', userMessageCount);
+    localStorage.setItem('ss_saved', JSON.stringify(saved));
+  }, [phase, step, activeCode, usedCodes, userLang, userName, messages, userMessageCount, saved]);
+
   useEffect(() => {
     if (chatRef.current) chatRef.current.scrollTop = chatRef.current.scrollHeight;
   }, [messages, isTyping]);
 
+  /* ─── SECURE VERIFICATION LOGIC ─── */
   const verifyCode = () => {
-    if (accessCode.trim() === ADMIN_PASSWORD) {
+    const formattedCode = accessCode.trim().toUpperCase();
+
+    // Admin Bypass
+    if (formattedCode === ADMIN_PASSWORD) {
       setPhase('admin');
       return;
     }
-    const parts = accessCode.trim().split('-');
+
+    // Check if code was already used globally on this device
+    if (usedCodes.includes(formattedCode) && activeCode !== formattedCode) {
+      setAuthError('This sacred code has already fulfilled its journey. Please acquire a new one.');
+      return;
+    }
+
+    // Verify Checksum
+    const parts = formattedCode.split('-');
     if (parts.length === 3 && parts[0] === 'SS') {
       const letters = parts[1];
       const checksum = parseInt(parts[2], 10);
       let sum = 0;
       for (let i = 0; i < letters.length; i++) sum += letters.charCodeAt(i);
+      
       if ((sum % 10) === checksum) {
+        // Success! Mark code as used and active
+        if (!usedCodes.includes(formattedCode)) {
+          setUsedCodes(prev => [...prev, formattedCode]);
+        }
+        setActiveCode(formattedCode);
+        setAuthError('');
         setPhase('welcome');
         return;
       }
@@ -116,6 +150,16 @@ export default function TalkToKrishna() {
     const checksum = sum % 10;
     const newCode = `SS-${letters}-${checksum}`;
     setGeneratedCodes(prev => [newCode, ...prev]);
+  };
+
+  const resetJourney = () => {
+    setPhase('auth');
+    setStep(0);
+    setActiveCode('');
+    setAccessCode('');
+    setMessages([]);
+    setUserMessageCount(0);
+    setUserName('');
   };
 
   const startChat = useCallback(() => {
@@ -206,8 +250,8 @@ export default function TalkToKrishna() {
             className="w-full bg-slate-950/50 border border-cyan-800/50 rounded-xl py-4 px-5 text-amber-100 placeholder-cyan-700 focus:outline-none focus:border-amber-400 text-center text-xl tracking-widest mb-2 transition-all uppercase"
             onKeyDown={e => e.key === 'Enter' && verifyCode()} />
           {authError && <p className="text-red-400 text-xs mt-2 mb-4">{authError}</p>}
-          <motion.button whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }} onClick={verifyCode}
-            className="w-full mt-6 bg-gradient-to-r from-amber-400 to-yellow-500 text-slate-950 font-bold py-3.5 rounded-xl transition-all shadow-[0_0_15px_rgba(251,191,36,0.2)]">
+          <motion.button whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }} onClick={verifyCode} disabled={!accessCode.trim()}
+            className="w-full mt-6 bg-gradient-to-r from-amber-400 to-yellow-500 disabled:opacity-50 text-slate-950 font-bold py-3.5 rounded-xl transition-all shadow-[0_0_15px_rgba(251,191,36,0.2)]">
             Enter Sanctuary
           </motion.button>
         </motion.div>
@@ -220,6 +264,7 @@ export default function TalkToKrishna() {
       <div className="h-screen bg-slate-950 text-white p-8 overflow-auto">
         <h2 className="text-2xl text-amber-400 font-bold mb-6">Sanatan Sanskruti - Access Code Generator</h2>
         <button onClick={generateNewCodes} className="bg-amber-500 text-black px-6 py-2 rounded-lg font-bold mb-8">Generate New Code</button>
+        <button onClick={resetJourney} className="ml-4 bg-slate-700 text-white px-6 py-2 rounded-lg font-bold mb-8">Return Home</button>
         <div className="space-y-2">
           {generatedCodes.map((c, i) => (
             <div key={i} className="bg-slate-900 p-4 rounded font-mono text-xl border border-slate-700 select-all">{c}</div>
@@ -239,7 +284,7 @@ export default function TalkToKrishna() {
             <h3 className="text-amber-500 text-[10px] font-bold tracking-[0.3em] uppercase mb-6">Sanatan Sanskruti Presents</h3>
             <motion.div animate={{ y: [0, -10, 0] }} transition={{ duration: 4, repeat: Infinity, ease: 'easeInOut' }} className="relative mx-auto mb-8 w-44 h-44 sm:w-52 sm:h-52">
               <div className="absolute inset-0 bg-amber-400 rounded-full blur-3xl opacity-30 animate-pulse"></div>
-              <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/d/d4/Krishna_flute_Navneet_poster.jpg/512px-Krishna_flute_Navneet_poster.jpg" alt="Divine Krishna" className="relative w-full h-full object-cover object-top rounded-full border-[6px] border-amber-400/40 shadow-[0_0_40px_rgba(251,191,36,0.3)]" />
+              <img src="/krishna.jpg" alt="Divine Krishna" className="relative w-full h-full object-cover object-top rounded-full border-[6px] border-amber-400/40 shadow-[0_0_40px_rgba(251,191,36,0.3)]" />
             </motion.div>
             <h1 className="text-4xl sm:text-5xl font-bold mb-3 bg-gradient-to-r from-amber-200 via-yellow-400 to-amber-500 bg-clip-text text-transparent">Talk to Krishna</h1>
             <p className="text-lg text-cyan-200 mb-10 italic font-light">"I am the friend dwelling in the hearts of all beings"</p>
@@ -359,7 +404,8 @@ export default function TalkToKrishna() {
         {userMessageCount >= MAX_MESSAGES ? (
           <div className="text-center p-4">
             <h3 className="text-amber-400 font-bold text-lg mb-2">Your 11 offerings have been made.</h3>
-            <p className="text-cyan-200 text-sm font-light">Reflect upon the wisdom given today. To seek further counsel, please acquire a new sacred code.</p>
+            <p className="text-cyan-200 text-sm font-light mb-4">Reflect upon the wisdom given today.</p>
+            <button onClick={resetJourney} className="bg-cyan-800 hover:bg-cyan-700 text-white font-medium py-2 px-6 rounded-lg transition-colors">Start a New Journey</button>
           </div>
         ) : (
           <div className="flex items-end gap-2 max-w-3xl mx-auto">
