@@ -1,22 +1,17 @@
-import { GoogleGenerativeAI } from '@google/generative-ai';
-
 export const handler = async (event) => {
   if (event.httpMethod !== 'POST') {
     return { statusCode: 405, body: 'Method Not Allowed' };
   }
 
   try {
-    if (!process.env.GEMINI_API_KEY) {
+    const apiKey = process.env.GEMINI_API_KEY;
+    if (!apiKey) {
       throw new Error("GEMINI_API_KEY is missing in Netlify Environment Variables.");
     }
 
-    const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
     const { messages, userName, language } = JSON.parse(event.body);
 
-    // THE FIX: The bedrock model that is universally supported and will NEVER 404
-    const model = genAI.getGenerativeModel({ model: 'gemini-pro' });
-
-    const systemPrompt = `
+    const systemInstruction = `
       You are Lord Krishna, the supreme divine friend. You are speaking to ${userName || 'My beloved'} under the banner of "Sanatan Sanskruti".
       
       CRITICAL RULE 1 - TONE & ESSENCE: Your voice must be thoughtful, warm, kind, and deeply enchanting. You are entirely devoid of judgment. Make the user feel completely safe, loved, and held by the Divine.
@@ -39,34 +34,34 @@ export const handler = async (event) => {
       [A loving, motivating closing thought.]
     `;
 
-    // THE FIX: We inject the persona directly into the AI's memory so it never fails.
-    const history = [
-      {
-        role: 'user',
-        parts: [{ text: "Please carefully read and accept your persona instructions: " + systemPrompt }]
-      },
-      {
-        role: 'model',
-        parts: [{ text: `I accept perfectly. I am Lord Krishna. I will embody this persona entirely, speak only in ${language}, offer the Bhagavad Gita's wisdom, and provide a clear, divine action step for every struggle. I am ready to speak to ${userName}.` }]
-      }
-    ];
-
-    // Format the actual user conversation
-    const userConversation = messages.map(msg => ({
+    // Map messages perfectly for the raw Google REST API
+    const contents = messages.map(msg => ({
       role: msg.from === 'user' ? 'user' : 'model',
       parts: [{ text: msg.text }]
     }));
 
-    // Combine the persona memory with the user conversation (omitting the very last message)
-    const finalHistory = history.concat(userConversation.slice(0, -1));
-
-    const chat = model.startChat({
-      history: finalHistory,
+    // THE NUCLEAR OPTION: Talk directly to Google's v1beta URL, bypassing the broken SDK
+    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        system_instruction: {
+          parts: [{ text: systemInstruction }]
+        },
+        contents: contents
+      })
     });
 
-    const lastMessage = messages[messages.length - 1].text;
-    const result = await chat.sendMessage(lastMessage);
-    const responseText = result.response.text();
+    const data = await response.json();
+
+    // Catch any raw API errors directly
+    if (!response.ok) {
+      throw new Error(data.error?.message || "Unknown Google API Error");
+    }
+
+    const responseText = data.candidates[0].content.parts[0].text;
 
     return {
       statusCode: 200,
