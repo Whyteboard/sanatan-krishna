@@ -58,7 +58,6 @@ function Particles() {
 }
 
 export default function TalkToKrishna() {
-  // NEW STORAGE KEYS: sk_ forces a clean slate for everyone!
   const [phase, setPhase] = useState(() => localStorage.getItem('sk_phase') || 'auth'); 
   const [step, setStep] = useState(() => parseInt(localStorage.getItem('sk_step') || '0', 10));
   const [accessCode, setAccessCode] = useState('');
@@ -80,7 +79,6 @@ export default function TalkToKrishna() {
   
   const [showSaved, setShowSaved] = useState(false);
   const [showSupport, setShowSupport] = useState(false);
-  const [audioOn, setAudioOn] = useState(false);
   const chatRef = useRef(null);
 
   useEffect(() => {
@@ -186,18 +184,25 @@ export default function TalkToKrishna() {
         method: 'POST', body: JSON.stringify({ messages: newMessages, userName, language: userLang }),
       });
       const data = await response.json();
+      const responseText = data.reply || data.error;
       
-      // If the API threw our custom error, do NOT count it against the user's limit
-      if (data.reply && data.reply.includes('SYSTEM ERROR DETECTED')) {
-        setUserMessageCount(prev => prev - 1);
-      }
-      
-      setMessages(prev => [...prev, { from: 'krishna', text: data.reply || data.error, ts: Date.now(), saved: false }]);
+      const wordCount = responseText.split(' ').length;
+      const calculatedDelay = Math.min(2000 + (wordCount * 20), 6500);
+
+      setTimeout(() => {
+        if (responseText.includes('SYSTEM ERROR DETECTED')) {
+          setUserMessageCount(prev => prev - 1);
+        }
+        setMessages(prev => [...prev, { from: 'krishna', text: responseText, ts: Date.now(), saved: false }]);
+        setIsTyping(false);
+      }, calculatedDelay);
+
     } catch (error) {
-      setUserMessageCount(prev => prev - 1); // Refund the message count
-      setMessages(prev => [...prev, { from: 'krishna', text: "Breathe, My child. Try speaking to Me again in a moment.", ts: Date.now(), saved: false }]);
-    } finally {
-      setIsTyping(false);
+      setTimeout(() => {
+        setUserMessageCount(prev => prev - 1); 
+        setMessages(prev => [...prev, { from: 'krishna', text: "Breathe, My child. Try speaking to Me again in a moment.", ts: Date.now(), saved: false }]);
+        setIsTyping(false);
+      }, 2500);
     }
   };
 
@@ -218,7 +223,7 @@ export default function TalkToKrishna() {
       </button>
       <AnimatePresence>
         {showSupport && (
-          <motion.div initial={{ opacity: 0, y: 50 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 50 }} className="fixed bottom-24 right-6 z-50 w-80 bg-slate-900 border border-cyan-800 rounded-2xl shadow-2xl p-5">
+          <motion.div initial={{ opacity: 0, y: 50 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 50 }} className="fixed bottom-40 right-6 z-50 w-80 bg-slate-900 border border-cyan-800 rounded-2xl shadow-2xl p-5">
             <div className="flex justify-between items-center mb-3">
               <h3 className="text-amber-400 font-bold flex items-center gap-2"><Mail className="w-4 h-4"/> Support Chat</h3>
               <button onClick={() => setShowSupport(false)}><X className="w-4 h-4 text-cyan-500 hover:text-white" /></button>
@@ -381,7 +386,7 @@ export default function TalkToKrishna() {
       <div ref={chatRef} className="flex-1 overflow-y-auto px-3 py-4 relative z-10 space-y-5 min-h-0 custom-scrollbar">
         {messages.map((msg, i) => (
           <motion.div key={i} initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} className={`flex ${msg.from === 'user' ? 'justify-end' : 'justify-start'}`}>
-            {msg.from === 'krishna' && <div className="w-8 h-8 rounded-full bg-gradient-to-br from-amber-400 to-yellow-600 flex items-center justify-center text-sm mt-1 mr-2 flex-shrink-0">🪷</div>}
+            {msg.from === 'krishna' && <img src="/krishna.jpg" alt="Krishna" className="w-8 h-8 rounded-full object-cover object-top mt-1 mr-2 flex-shrink-0 shadow-[0_0_8px_rgba(251,191,36,0.4)] border border-amber-400/50" />}
             <div className={`relative group rounded-2xl px-5 py-4 ${msg.from === 'user' ? 'bg-cyan-800/60 text-cyan-50 rounded-br-sm max-w-[85%]' : 'bg-slate-900/70 border border-amber-500/20 text-cyan-50 rounded-bl-sm max-w-[90%] md:max-w-xl shadow-xl'}`}>
               <div className="text-[15px] font-light leading-relaxed">{renderText(msg.text)}</div>
               {msg.from === 'krishna' && (
@@ -394,7 +399,7 @@ export default function TalkToKrishna() {
         ))}
         {isTyping && (
            <div className="flex items-start gap-2">
-             <div className="w-8 h-8 rounded-full bg-gradient-to-br from-amber-400 to-yellow-600 flex items-center justify-center text-sm">🪷</div>
+             <img src="/krishna.jpg" alt="Krishna" className="w-8 h-8 rounded-full object-cover object-top shadow-[0_0_8px_rgba(251,191,36,0.4)] border border-amber-400/50" />
              <div className="bg-slate-900/70 border border-amber-500/20 rounded-2xl rounded-bl-sm px-5 py-3 text-amber-300 text-xs font-medium animate-pulse">Formulating divine wisdom...</div>
            </div>
         )}
