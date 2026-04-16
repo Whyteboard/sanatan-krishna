@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Send, Bookmark, BookmarkCheck, Volume2, VolumeX, X, BookOpen, ChevronRight, Globe, Sparkles, Key, MessageCircle, Mail } from 'lucide-react';
+import { Send, Bookmark, BookmarkCheck, Volume2, VolumeX, X, BookOpen, ChevronRight, Globe, Sparkles, Key, MessageCircle, Mail, LogOut } from 'lucide-react';
 
 const LANGUAGES = [
   { code: 'English', label: 'English' },
@@ -58,74 +58,64 @@ function Particles() {
 }
 
 export default function TalkToKrishna() {
-  // SESSION RECOVERY: Initialize state from Browser Memory
-  const [phase, setPhase] = useState(() => localStorage.getItem('ss_phase') || 'auth'); 
-  const [step, setStep] = useState(() => parseInt(localStorage.getItem('ss_step') || '0', 10));
+  // NEW STORAGE KEYS: sk_ forces a clean slate for everyone!
+  const [phase, setPhase] = useState(() => localStorage.getItem('sk_phase') || 'auth'); 
+  const [step, setStep] = useState(() => parseInt(localStorage.getItem('sk_step') || '0', 10));
   const [accessCode, setAccessCode] = useState('');
-  const [activeCode, setActiveCode] = useState(() => localStorage.getItem('ss_activeCode') || '');
-  const [usedCodes, setUsedCodes] = useState(() => JSON.parse(localStorage.getItem('ss_usedCodes') || '[]'));
+  const [activeCode, setActiveCode] = useState(() => localStorage.getItem('sk_activeCode') || '');
+  const [usedCodes, setUsedCodes] = useState(() => JSON.parse(localStorage.getItem('sk_usedCodes') || '[]'));
   const [authError, setAuthError] = useState('');
   const [generatedCodes, setGeneratedCodes] = useState([]);
   
-  const [userLang, setUserLang] = useState(() => localStorage.getItem('ss_lang') || 'English');
-  const [userName, setUserName] = useState(() => localStorage.getItem('ss_name') || '');
+  const [userLang, setUserLang] = useState(() => localStorage.getItem('sk_lang') || 'English');
+  const [userName, setUserName] = useState(() => localStorage.getItem('sk_name') || '');
   const [userMood, setUserMood] = useState('');
   const [userConcern, setUserConcern] = useState('');
   
-  const [messages, setMessages] = useState(() => JSON.parse(localStorage.getItem('ss_messages') || '[]'));
-  const [userMessageCount, setUserMessageCount] = useState(() => parseInt(localStorage.getItem('ss_count') || '0', 10));
+  const [messages, setMessages] = useState(() => JSON.parse(localStorage.getItem('sk_messages') || '[]'));
+  const [userMessageCount, setUserMessageCount] = useState(() => parseInt(localStorage.getItem('sk_count') || '0', 10));
   const [input, setInput] = useState('');
   const [isTyping, setIsTyping] = useState(false);
-  const [saved, setSaved] = useState(() => JSON.parse(localStorage.getItem('ss_saved') || '[]'));
+  const [saved, setSaved] = useState(() => JSON.parse(localStorage.getItem('sk_saved') || '[]'));
   
   const [showSaved, setShowSaved] = useState(false);
   const [showSupport, setShowSupport] = useState(false);
   const [audioOn, setAudioOn] = useState(false);
   const chatRef = useRef(null);
 
-  // SAVE TO BROWSER MEMORY WHENEVER STATE CHANGES
   useEffect(() => {
-    localStorage.setItem('ss_phase', phase);
-    localStorage.setItem('ss_step', step);
-    localStorage.setItem('ss_activeCode', activeCode);
-    localStorage.setItem('ss_usedCodes', JSON.stringify(usedCodes));
-    localStorage.setItem('ss_lang', userLang);
-    localStorage.setItem('ss_name', userName);
-    localStorage.setItem('ss_messages', JSON.stringify(messages));
-    localStorage.setItem('ss_count', userMessageCount);
-    localStorage.setItem('ss_saved', JSON.stringify(saved));
+    localStorage.setItem('sk_phase', phase);
+    localStorage.setItem('sk_step', step);
+    localStorage.setItem('sk_activeCode', activeCode);
+    localStorage.setItem('sk_usedCodes', JSON.stringify(usedCodes));
+    localStorage.setItem('sk_lang', userLang);
+    localStorage.setItem('sk_name', userName);
+    localStorage.setItem('sk_messages', JSON.stringify(messages));
+    localStorage.setItem('sk_count', userMessageCount);
+    localStorage.setItem('sk_saved', JSON.stringify(saved));
   }, [phase, step, activeCode, usedCodes, userLang, userName, messages, userMessageCount, saved]);
 
   useEffect(() => {
     if (chatRef.current) chatRef.current.scrollTop = chatRef.current.scrollHeight;
   }, [messages, isTyping]);
 
-  /* ─── SECURE VERIFICATION LOGIC ─── */
   const verifyCode = () => {
     const formattedCode = accessCode.trim().toUpperCase();
-
-    // Admin Bypass
     if (formattedCode === ADMIN_PASSWORD) {
       setPhase('admin');
       return;
     }
-
-    // Check if code was already used globally on this device
     if (usedCodes.includes(formattedCode) && activeCode !== formattedCode) {
       setAuthError('This sacred code has already fulfilled its journey. Please acquire a new one.');
       return;
     }
-
-    // Verify Checksum
     const parts = formattedCode.split('-');
     if (parts.length === 3 && parts[0] === 'SS') {
       const letters = parts[1];
       const checksum = parseInt(parts[2], 10);
       let sum = 0;
       for (let i = 0; i < letters.length; i++) sum += letters.charCodeAt(i);
-      
       if ((sum % 10) === checksum) {
-        // Success! Mark code as used and active
         if (!usedCodes.includes(formattedCode)) {
           setUsedCodes(prev => [...prev, formattedCode]);
         }
@@ -196,8 +186,15 @@ export default function TalkToKrishna() {
         method: 'POST', body: JSON.stringify({ messages: newMessages, userName, language: userLang }),
       });
       const data = await response.json();
+      
+      // If the API threw our custom error, do NOT count it against the user's limit
+      if (data.reply && data.reply.includes('SYSTEM ERROR DETECTED')) {
+        setUserMessageCount(prev => prev - 1);
+      }
+      
       setMessages(prev => [...prev, { from: 'krishna', text: data.reply || data.error, ts: Date.now(), saved: false }]);
     } catch (error) {
+      setUserMessageCount(prev => prev - 1); // Refund the message count
       setMessages(prev => [...prev, { from: 'krishna', text: "Breathe, My child. Try speaking to Me again in a moment.", ts: Date.now(), saved: false }]);
     } finally {
       setIsTyping(false);
@@ -371,9 +368,12 @@ export default function TalkToKrishna() {
           <div className="text-xs text-amber-200/80 mr-2 bg-slate-900 px-3 py-1 rounded-full border border-amber-500/20">
             {MAX_MESSAGES - userMessageCount} offerings left
           </div>
-          <button onClick={() => setShowSaved(true)} className="p-2 hover:bg-cyan-900/50 rounded-lg relative">
+          <button onClick={() => setShowSaved(true)} className="p-2 hover:bg-cyan-900/50 rounded-lg relative" title="Divine Journal">
             <BookOpen className="w-4.5 h-4.5 text-cyan-400" />
             {saved.length > 0 && <span className="absolute -top-0.5 -right-0.5 w-4 h-4 bg-amber-500 rounded-full text-slate-950 text-[10px] flex items-center justify-center font-bold">{saved.length}</span>}
+          </button>
+          <button onClick={resetJourney} className="p-2 hover:bg-red-900/50 rounded-lg relative ml-1" title="Log Out / Start Over">
+            <LogOut className="w-4.5 h-4.5 text-red-400" />
           </button>
         </div>
       </div>
