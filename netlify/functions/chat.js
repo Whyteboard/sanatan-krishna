@@ -1,13 +1,17 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
 
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-
 export const handler = async (event) => {
   if (event.httpMethod !== 'POST') {
     return { statusCode: 405, body: 'Method Not Allowed' };
   }
 
   try {
+    // Check if API key is missing before doing anything else
+    if (!process.env.GEMINI_API_KEY) {
+      throw new Error("GEMINI_API_KEY is missing in Netlify Environment Variables.");
+    }
+
+    const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
     const { messages, userName, language } = JSON.parse(event.body);
     const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
 
@@ -55,9 +59,10 @@ export const handler = async (event) => {
 
   } catch (error) {
     console.error('Divine Connection Error:', error);
+    // WE CHANGED THIS: It now returns the EXACT ERROR MESSAGE to the frontend!
     return {
-      statusCode: 500,
-      body: JSON.stringify({ error: 'The winds of connection are weak right now. Breathe, and try again.' }),
+      statusCode: 200, 
+      body: JSON.stringify({ reply: `⚠️ **SYSTEM ERROR DETECTED:** ${error.message}` }),
     };
   }
 };
