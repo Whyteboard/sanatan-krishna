@@ -213,7 +213,7 @@ export default function TalkToKrishna() {
 
   const SupportWidget = () => (
     <>
-      <button onClick={() => setShowSupport(true)} className="fixed bottom-6 right-6 z-50 bg-amber-500 hover:bg-amber-400 text-slate-950 p-4 rounded-full shadow-2xl shadow-amber-500/40 transition-transform hover:scale-105">
+      <button onClick={() => setShowSupport(true)} className="fixed bottom-24 right-6 z-50 bg-amber-500 hover:bg-amber-400 text-slate-950 p-4 rounded-full shadow-2xl shadow-amber-500/40 transition-transform hover:scale-105">
         <MessageCircle className="w-6 h-6" />
       </button>
       <AnimatePresence>
