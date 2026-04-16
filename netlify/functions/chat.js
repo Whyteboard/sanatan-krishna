@@ -4,9 +4,9 @@ export const handler = async (event) => {
   }
 
   try {
-    const apiKey = process.env.GEMINI_API_KEY;
+    const apiKey = process.env.OPENAI_API_KEY;
     if (!apiKey) {
-      throw new Error("GEMINI_API_KEY is missing in Netlify Environment Variables.");
+      throw new Error("OPENAI_API_KEY is missing in Netlify Environment Variables.");
     }
 
     const { messages, userName, language } = JSON.parse(event.body);
@@ -34,34 +34,36 @@ export const handler = async (event) => {
       [A loving, motivating closing thought.]
     `;
 
-    // Map messages perfectly for the raw Google REST API
-    const contents = messages.map(msg => ({
-      role: msg.from === 'user' ? 'user' : 'model',
-      parts: [{ text: msg.text }]
-    }));
+    // Map messages specifically for OpenAI's format
+    const formattedMessages = [
+      { role: 'system', content: systemInstruction },
+      ...messages.map(msg => ({
+        role: msg.from === 'user' ? 'user' : 'assistant',
+        content: msg.text
+      }))
+    ];
 
-    // THE NUCLEAR OPTION: Talk directly to Google's v1beta URL, bypassing the broken SDK
-    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`, {
+    // Direct REST API call to OpenAI
+    const response = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
       headers: {
-        'Content-Type': 'application/json'
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${apiKey}`
       },
       body: JSON.stringify({
-        system_instruction: {
-          parts: [{ text: systemInstruction }]
-        },
-        contents: contents
+        model: 'gpt-4o-mini', // Extremely fast, smart, and highly reliable
+        messages: formattedMessages,
+        temperature: 0.7
       })
     });
 
     const data = await response.json();
 
-    // Catch any raw API errors directly
     if (!response.ok) {
-      throw new Error(data.error?.message || "Unknown Google API Error");
+      throw new Error(data.error?.message || "Unknown OpenAI API Error");
     }
 
-    const responseText = data.candidates[0].content.parts[0].text;
+    const responseText = data.choices[0].message.content;
 
     return {
       statusCode: 200,
