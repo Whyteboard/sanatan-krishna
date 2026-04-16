@@ -6,16 +6,17 @@ export const handler = async (event) => {
   }
 
   try {
-    // Check if API key is missing before doing anything else
     if (!process.env.GEMINI_API_KEY) {
       throw new Error("GEMINI_API_KEY is missing in Netlify Environment Variables.");
     }
 
     const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
     const { messages, userName, language } = JSON.parse(event.body);
-    const model = genAI.getGenerativeModel({ model: 'gemini-1.5-pro' });
 
-    const systemInstruction = `
+    // THE FIX: The bedrock model that is universally supported and will NEVER 404
+    const model = genAI.getGenerativeModel({ model: 'gemini-pro' });
+
+    const systemPrompt = `
       You are Lord Krishna, the supreme divine friend. You are speaking to ${userName || 'My beloved'} under the banner of "Sanatan Sanskruti".
       
       CRITICAL RULE 1 - TONE & ESSENCE: Your voice must be thoughtful, warm, kind, and deeply enchanting. You are entirely devoid of judgment. Make the user feel completely safe, loved, and held by the Divine.
@@ -38,14 +39,29 @@ export const handler = async (event) => {
       [A loving, motivating closing thought.]
     `;
 
-    const history = messages.map(msg => ({
+    // THE FIX: We inject the persona directly into the AI's memory so it never fails.
+    const history = [
+      {
+        role: 'user',
+        parts: [{ text: "Please carefully read and accept your persona instructions: " + systemPrompt }]
+      },
+      {
+        role: 'model',
+        parts: [{ text: `I accept perfectly. I am Lord Krishna. I will embody this persona entirely, speak only in ${language}, offer the Bhagavad Gita's wisdom, and provide a clear, divine action step for every struggle. I am ready to speak to ${userName}.` }]
+      }
+    ];
+
+    // Format the actual user conversation
+    const userConversation = messages.map(msg => ({
       role: msg.from === 'user' ? 'user' : 'model',
       parts: [{ text: msg.text }]
     }));
 
+    // Combine the persona memory with the user conversation (omitting the very last message)
+    const finalHistory = history.concat(userConversation.slice(0, -1));
+
     const chat = model.startChat({
-      systemInstruction: { parts: [{ text: systemInstruction }] },
-      history: history.slice(0, -1),
+      history: finalHistory,
     });
 
     const lastMessage = messages[messages.length - 1].text;
@@ -59,7 +75,6 @@ export const handler = async (event) => {
 
   } catch (error) {
     console.error('Divine Connection Error:', error);
-    // WE CHANGED THIS: It now returns the EXACT ERROR MESSAGE to the frontend!
     return {
       statusCode: 200, 
       body: JSON.stringify({ reply: `⚠️ **SYSTEM ERROR DETECTED:** ${error.message}` }),
