@@ -4,9 +4,9 @@ export const handler = async (event) => {
   }
 
   try {
-    const apiKey = process.env.OPENAI_API_KEY;
+    const apiKey = process.env.GROQ_API_KEY;
     if (!apiKey) {
-      throw new Error("OPENAI_API_KEY is missing in Netlify Environment Variables.");
+      throw new Error("GROQ_API_KEY is missing in Netlify Environment Variables.");
     }
 
     const { messages, userName, language } = JSON.parse(event.body);
@@ -34,7 +34,7 @@ export const handler = async (event) => {
       [A loving, motivating closing thought.]
     `;
 
-    // Map messages specifically for OpenAI's format
+    // Map messages perfectly for the API
     const formattedMessages = [
       { role: 'system', content: systemInstruction },
       ...messages.map(msg => ({
@@ -43,15 +43,15 @@ export const handler = async (event) => {
       }))
     ];
 
-    // Direct REST API call to OpenAI
-    const response = await fetch('https://api.openai.com/v1/chat/completions', {
+    // Direct REST API call to Groq (100% Free and Lightning Fast)
+    const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${apiKey}`
       },
       body: JSON.stringify({
-        model: 'gpt-4o-mini', // Extremely fast, smart, and highly reliable
+        model: 'llama3-70b-8192', // Groq's smartest, largest free model
         messages: formattedMessages,
         temperature: 0.7
       })
@@ -60,7 +60,7 @@ export const handler = async (event) => {
     const data = await response.json();
 
     if (!response.ok) {
-      throw new Error(data.error?.message || "Unknown OpenAI API Error");
+      throw new Error(data.error?.message || "Unknown Groq API Error");
     }
 
     const responseText = data.choices[0].message.content;
