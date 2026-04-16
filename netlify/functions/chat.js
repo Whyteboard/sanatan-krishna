@@ -51,7 +51,7 @@ export const handler = async (event) => {
         'Authorization': `Bearer ${apiKey}`
       },
       body: JSON.stringify({
-        model: 'llama3-70b-8192', // Groq's smartest, largest free model
+        model: 'llama-3.3-70b-versatile', // Groq's smartest, largest free model
         messages: formattedMessages,
         temperature: 0.7
       })
